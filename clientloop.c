@@ -298,7 +298,7 @@ client_x11_get_proto(struct ssh *ssh, const char *display,
 		return -1;
 	}
 	if (xauth_path != NULL && stat(xauth_path, &st) == -1) {
-		debug("No xauth program.");
+		debug("No xauth program ('%s').", xauth_path);
 		xauth_path = NULL;
 	}
 

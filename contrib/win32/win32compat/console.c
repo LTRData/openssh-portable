@@ -1572,44 +1572,79 @@ ConSaveViewRect()
 		SavedViewRect = csbi.srWindow;
 }
 
+bool user_gui_supported = true;
+
+void
+ConsoleNotAvailable(ULONG status)
+{
+    user_gui_supported = false;
+    fprintf_s(stderr, "Console not available (0x%X)\n", status);
+    fflush(stderr);
+}
+
 void
 ConRestoreViewRect()
 {
-	CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
-	HWND hwnd = FindWindow(NULL, consoleTitle);
+    if (!user_gui_supported)
+    {
+        return;
+    }
 
-	WINDOWPLACEMENT wp;
-	wp.length = sizeof(WINDOWPLACEMENT);
-	GetWindowPlacement(hwnd, &wp);
+    __try
+    {
+        CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+        HWND hwnd = FindWindow(NULL, consoleTitle);
 
-	if (GetConsoleScreenBufferInfo(GetConsoleOutputHandle(), &consoleInfo) &&
-	    ((consoleInfo.srWindow.Top != SavedViewRect.Top ||
-	      consoleInfo.srWindow.Bottom != SavedViewRect.Bottom))) {
-		if ((SavedViewRect.Right - SavedViewRect.Left > consoleInfo.dwSize.X) ||
-		    (wp.showCmd == SW_SHOWMAXIMIZED)) {
-			COORD coordScreen;
-			coordScreen.X = SavedViewRect.Right - SavedViewRect.Left;
-			coordScreen.Y = consoleInfo.dwSize.Y;
-			SetConsoleScreenBufferSize(GetConsoleOutputHandle(), coordScreen);
-			
-			ShowWindow(hwnd, SW_SHOWMAXIMIZED);
-		} else
-			ShowWindow(hwnd, SW_RESTORE);
+        WINDOWPLACEMENT wp;
+        wp.length = sizeof(WINDOWPLACEMENT);
+        GetWindowPlacement(hwnd, &wp);
 
-		SetConsoleWindowInfo(GetConsoleOutputHandle(), TRUE, &SavedViewRect);
-	}
+        if (GetConsoleScreenBufferInfo(GetConsoleOutputHandle(), &consoleInfo) &&
+            ((consoleInfo.srWindow.Top != SavedViewRect.Top ||
+                consoleInfo.srWindow.Bottom != SavedViewRect.Bottom))) {
+            if ((SavedViewRect.Right - SavedViewRect.Left > consoleInfo.dwSize.X) ||
+                (wp.showCmd == SW_SHOWMAXIMIZED)) {
+                COORD coordScreen;
+                coordScreen.X = SavedViewRect.Right - SavedViewRect.Left;
+                coordScreen.Y = consoleInfo.dwSize.Y;
+                SetConsoleScreenBufferSize(GetConsoleOutputHandle(), coordScreen);
+
+                ShowWindow(hwnd, SW_SHOWMAXIMIZED);
+            }
+            else
+                ShowWindow(hwnd, SW_RESTORE);
+
+            SetConsoleWindowInfo(GetConsoleOutputHandle(), TRUE, &SavedViewRect);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ConsoleNotAvailable(GetExceptionCode());
+    }
 }
 
 void
 ConSaveWindowsState()
 {
-	CONSOLE_SCREEN_BUFFER_INFOEX csbiex;
-	csbiex.cbSize = sizeof(CONSOLE_SCREEN_BUFFER_INFOEX);
+    if (!user_gui_supported)
+    {
+        return;
+    }
 
-	if (!GetConsoleScreenBufferInfoEx(GetConsoleOutputHandle(), &csbiex))
-		return;
+    __try
+    {
+        CONSOLE_SCREEN_BUFFER_INFOEX csbiex;
+        csbiex.cbSize = sizeof(CONSOLE_SCREEN_BUFFER_INFOEX);
 
-	SavedWindowState = csbiex;
+        if (!GetConsoleScreenBufferInfoEx(GetConsoleOutputHandle(), &csbiex))
+            return;
+
+        SavedWindowState = csbiex;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ConsoleNotAvailable(GetExceptionCode());
+    }
 }
 
 void

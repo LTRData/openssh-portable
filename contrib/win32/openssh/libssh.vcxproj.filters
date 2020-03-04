@@ -6,10 +6,6 @@
     <ClCompile Include="$(OpenSSH-Src-Path)authfd.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)authfile.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)bitmap.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)bufaux.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)bufbn.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)bufec.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)buffer.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)canohost.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)chacha.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)channels.c" />
@@ -46,7 +42,6 @@
     <ClCompile Include="$(OpenSSH-Src-Path)kexecdhs.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexgex.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexgexc.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)key.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)krl.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)log.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)mac.c" />
@@ -104,21 +99,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)bitmap.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(OpenSSH-Src-Path)blocks.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(OpenSSH-Src-Path)bufaux.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(OpenSSH-Src-Path)bufbn.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(OpenSSH-Src-Path)bufec.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(OpenSSH-Src-Path)buffer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)canohost.c">
@@ -227,9 +207,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)kexgexc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="$(OpenSSH-Src-Path)key.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)krl.c">

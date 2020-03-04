@@ -80,7 +80,15 @@ ReadThread(_In_ LPVOID lpParameter)
 	memset(&pio->sync_read_status, 0, sizeof(pio->sync_read_status));
 	if (FILETYPE(pio) == FILE_TYPE_CHAR) {
 		if (in_raw_mode) {
-			while (nBytesReturned == 0) {
+            DWORD dwAttributes;
+            if (GetConsoleMode(WINHANDLE(pio), &dwAttributes) && (dwAttributes & ENABLE_PROCESSED_INPUT))
+            {
+                dwAttributes &= ~(ENABLE_LINE_INPUT |
+                    ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_MOUSE_INPUT);
+
+                SetConsoleMode(WINHANDLE(pio), dwAttributes);
+            }
+            while (nBytesReturned == 0) {
 				nBytesReturned = ReadConsoleForTermEmul(WINHANDLE(pio),
 					pio->read_details.buf, pio->read_details.buf_size);
 			}

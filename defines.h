@@ -419,7 +419,11 @@ struct winsize {
 #endif
 
 #ifndef _PATH_DEVNULL
+# ifdef _WIN32
+# define _PATH_DEVNULL "nul"
+#else
 # define _PATH_DEVNULL "/dev/null"
+#endif
 #endif
 
 /* user may have set a different path */
@@ -451,7 +455,11 @@ struct winsize {
 #define _PATH_UNIX_X X_UNIX_PATH
 
 #ifndef _PATH_TTY
-# define _PATH_TTY "/dev/tty"
+# ifdef _WIN32
+#  define _PATH_TTY "conin$"
+# else
+#  define _PATH_TTY "/dev/tty"
+# endif
 #endif
 
 /* Macros */
