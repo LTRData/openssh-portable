@@ -135,7 +135,7 @@
 #define DISABLE_WTMPX 1
 
 /* Enable for PKCS#11 support */
-/* #undef ENABLE_PKCS11 */
+#define ENABLE_PKCS11 1
 
 /* File names may not contain backslash characters */
 /* #undef FILESYSTEM_NO_BACKSLASH */
@@ -359,14 +359,20 @@
 /* Define to 1 if you have the `EVP_sha256' function. */
 #define HAVE_EVP_SHA256 1
 
+/* Define to 1 if you have the `EVP_sha384' function. */
+#define HAVE_EVP_SHA384 1
+
+/* Define to 1 if you have the `EVP_sha512' function. */
+#define HAVE_EVP_SHA512 1
+
 /* Define if you have ut_exit in utmp.h */
 /* #undef HAVE_EXIT_IN_UTMP */
 
 /* Define to 1 if you have the `fchmod' function. */
-/* #undef HAVE_FCHMOD */
+#define HAVE_FCHMOD  1
 
 /* Define to 1 if you have the `fchown' function. */
-/* #undef HAVE_FCHOWN */
+#define HAVE_FCHOWN  1
 
 /* Use F_CLOSEM fcntl for closefrom */
 /* #undef HAVE_FCNTL_CLOSEM */
@@ -1673,7 +1679,7 @@
 #endif
 
 #define HAVE_BZERO 1
-#define PATH_MAX MAX_PATH
+#define PATH_MAX 32768
 #define S_IFIFO        0x1000  
 #define HAVE_EXPLICIT_BZERO
 #define HAVE_MBTOWC 1
@@ -1701,6 +1707,7 @@
 #define _PATH_SFTP_SERVER "sftp-server.exe"
 #define _PATH_SSH_PROGRAM "ssh.exe"
 #define _PATH_LS			"dir"
-#define FORK_NOT_SUPPORTED 1
+#define _PATH_DEVNULL "NUL"
+#define FORK_NOT_SUPPORTED
 #define HAVE_FREEZERO
 #define FILESYSTEM_NO_BACKSLASH

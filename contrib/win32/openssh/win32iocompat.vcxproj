@@ -231,6 +231,10 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SDLCheck>false</SDLCheck>
+      <Optimization>MaxSpeed</Optimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <AdditionalOptions>/Gy %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
@@ -246,9 +250,10 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SDLCheck>false</SDLCheck>
-      <Optimization>Disabled</Optimization>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <Optimization>MaxSpeed</Optimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <AdditionalOptions>/Gy %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
@@ -264,9 +269,10 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SDLCheck>false</SDLCheck>
-      <Optimization>Disabled</Optimization>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <Optimization>MaxSpeed</Optimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <AdditionalOptions>/Gy %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -281,9 +287,10 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SDLCheck>false</SDLCheck>
-      <Optimization>Disabled</Optimization>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <Optimization>MaxSpeed</Optimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <AdditionalOptions>/Gy %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
@@ -304,7 +311,6 @@
     <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\pwd.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\win32_dirent.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\no-ops.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\win32_zlib.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\ansiprsr.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\console.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)\contrib\win32\win32compat\tncon.c" />

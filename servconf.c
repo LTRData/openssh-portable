@@ -1,5 +1,5 @@
 
-/* $OpenBSD: servconf.c,v 1.342 2018/09/20 23:40:16 djm Exp $ */
+/* $OpenBSD: servconf.c,v 1.352 2019/09/06 14:45:34 naddy Exp $ */
 /*
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
  *                    All rights reserved
@@ -221,26 +221,40 @@ assemble_algorithms(ServerOptions *o)
 }
 
 static void
-array_append(const char *file, const int line, const char *directive,
-    char ***array, u_int *lp, const char *s)
+array_append2(const char *file, const int line, const char *directive,
+    char ***array, int **iarray, u_int *lp, const char *s, int i)
 {
 
 	if (*lp >= INT_MAX)
 		fatal("%s line %d: Too many %s entries", file, line, directive);
+
+	if (iarray != NULL) {
+		*iarray = xrecallocarray(*iarray, *lp, *lp + 1,
+		    sizeof(**iarray));
+		(*iarray)[*lp] = i;
+	}
 
 	*array = xrecallocarray(*array, *lp, *lp + 1, sizeof(**array));
 	(*array)[*lp] = xstrdup(s);
 	(*lp)++;
 }
 
+static void
+array_append(const char *file, const int line, const char *directive,
+    char ***array, u_int *lp, const char *s)
+{
+	array_append2(file, line, directive, array, NULL, lp, s, 0);
+}
+
 void
 servconf_add_hostkey(const char *file, const int line,
-    ServerOptions *options, const char *path)
+    ServerOptions *options, const char *path, int userprovided)
 {
 	char *apath = derelativise_path(path);
 
-	array_append(file, line, "HostKey",
-	    &options->host_key_files, &options->num_host_key_files, apath);
+	array_append2(file, line, "HostKey",
+	    &options->host_key_files, &options->host_key_file_userprovided,
+	    &options->num_host_key_files, apath, userprovided);
 	free(apath);
 }
 
@@ -268,16 +282,16 @@ fill_default_server_options(ServerOptions *options)
 	if (options->num_host_key_files == 0) {
 		/* fill default hostkeys for protocols */
 		servconf_add_hostkey("[default]", 0, options,
-		    _PATH_HOST_RSA_KEY_FILE);
+		    _PATH_HOST_RSA_KEY_FILE, 0);
 #ifdef OPENSSL_HAS_ECC
 		servconf_add_hostkey("[default]", 0, options,
-		    _PATH_HOST_ECDSA_KEY_FILE);
+		    _PATH_HOST_ECDSA_KEY_FILE, 0);
 #endif
 		servconf_add_hostkey("[default]", 0, options,
-		    _PATH_HOST_ED25519_KEY_FILE);
+		    _PATH_HOST_ED25519_KEY_FILE, 0);
 #ifdef WITH_XMSS
 		servconf_add_hostkey("[default]", 0, options,
-		    _PATH_HOST_XMSS_KEY_FILE);
+		    _PATH_HOST_XMSS_KEY_FILE, 0);
 #endif /* WITH_XMSS */
 	}
 	/* No certificates by default */
@@ -456,7 +470,6 @@ fill_default_server_options(ServerOptions *options)
 		options->compression = 0;
 	}
 #endif
-
 }
 
 /* Keyword tokens. */
@@ -702,11 +715,8 @@ derelativise_path(const char *path)
 	if (strcasecmp(path, "none") == 0)
 		return xstrdup("none");
 	expanded = tilde_expand_filename(path, getuid());
-#ifdef WINDOWS        
-	if (is_absolute_path(expanded))
-#else  /* !WINDOWS */
-	if (*expanded == '/')
-#endif  /* !WINDOWS */
+
+	if (path_absolute(expanded))
 		return expanded;
 	if (getcwd(cwd, sizeof(cwd)) == NULL)
 		fatal("%s: getcwd: %s", __func__, strerror(errno));
@@ -868,7 +878,7 @@ process_permitopen_list(struct ssh *ssh, ServerOpCodes opcode,
 {
 	u_int i;
 	int port;
-	char *host, *arg, *oarg;
+	char *host, *arg, *oarg, ch;
 	int where = opcode == sPermitOpen ? FORWARD_LOCAL : FORWARD_REMOTE;
 	const char *what = lookup_opcode_name(opcode);
 
@@ -886,8 +896,9 @@ process_permitopen_list(struct ssh *ssh, ServerOpCodes opcode,
 	/* Otherwise treat it as a list of permitted host:port */
 	for (i = 0; i < num_opens; i++) {
 		oarg = arg = xstrdup(opens[i]);
-		host = hpdelim(&arg);
-		if (host == NULL)
+		ch = '\0';
+		host = hpdelim2(&arg, &ch);
+		if (host == NULL || ch == '/')
 			fatal("%s: missing host in %s", __func__, what);
 		host = cleanhostname(host);
 		if (arg == NULL || ((port = permitopen_port(arg)) < 0))
@@ -913,12 +924,11 @@ process_permitopen(struct ssh *ssh, ServerOptions *options)
 }
 
 struct connection_info *
-get_connection_info(int populate, int use_dns)
+get_connection_info(struct ssh *ssh, int populate, int use_dns)
 {
-	struct ssh *ssh = active_state; /* XXX */
 	static struct connection_info ci;
 
-	if (!populate)
+	if (ssh == NULL || !populate)
 		return &ci;
 	ci.host = auth_get_canonical_hostname(ssh, use_dns);
 	ci.address = ssh_remote_ipaddr(ssh);
@@ -1033,23 +1043,20 @@ match_cfg_line(char **condition, int line, struct connection_info *ci)
 			return -1;
 		}
 		if (strcasecmp(attrib, "user") == 0) {
-			if (ci == NULL) {
+			if (ci == NULL || (ci->test && ci->user == NULL)) {
 				result = 0;
 				continue;
 			}
 			if (ci->user == NULL)
 				match_test_missing_fatal("User", "user");
-#ifdef WINDOWS
-			if (match_pattern_list(ci->user, arg, 1) != 1)
-#else
-			if (match_pattern_list(ci->user, arg, 0) != 1)
-#endif
+
+			if (match_usergroup_pattern_list(ci->user, arg) != 1)
 				result = 0;
 			else
 				debug("user %.100s matched 'User %.100s' at "
 				    "line %d", ci->user, arg, line);
 		} else if (strcasecmp(attrib, "group") == 0) {
-			if (ci == NULL) {
+			if (ci == NULL || (ci->test && ci->user == NULL)) {
 				result = 0;
 				continue;
 			}
@@ -1062,7 +1069,7 @@ match_cfg_line(char **condition, int line, struct connection_info *ci)
 				result = 0;
 			}
 		} else if (strcasecmp(attrib, "host") == 0) {
-			if (ci == NULL) {
+			if (ci == NULL || (ci->test && ci->host == NULL)) {
 				result = 0;
 				continue;
 			}
@@ -1074,7 +1081,7 @@ match_cfg_line(char **condition, int line, struct connection_info *ci)
 				debug("connection from %.100s matched 'Host "
 				    "%.100s' at line %d", ci->host, arg, line);
 		} else if (strcasecmp(attrib, "address") == 0) {
-			if (ci == NULL) {
+			if (ci == NULL || (ci->test && ci->address == NULL)) {
 				result = 0;
 				continue;
 			}
@@ -1093,7 +1100,7 @@ match_cfg_line(char **condition, int line, struct connection_info *ci)
 				return -1;
 			}
 		} else if (strcasecmp(attrib, "localaddress") == 0){
-			if (ci == NULL) {
+			if (ci == NULL || (ci->test && ci->laddress == NULL)) {
 				result = 0;
 				continue;
 			}
@@ -1119,7 +1126,7 @@ match_cfg_line(char **condition, int line, struct connection_info *ci)
 				    arg);
 				return -1;
 			}
-			if (ci == NULL) {
+			if (ci == NULL || (ci->test && ci->lport == -1)) {
 				result = 0;
 				continue;
 			}
@@ -1133,10 +1140,12 @@ match_cfg_line(char **condition, int line, struct connection_info *ci)
 			else
 				result = 0;
 		} else if (strcasecmp(attrib, "rdomain") == 0) {
-			if (ci == NULL || ci->rdomain == NULL) {
+			if (ci == NULL || (ci->test && ci->rdomain == NULL)) {
 				result = 0;
 				continue;
 			}
+			if (ci->rdomain == NULL)
+				match_test_missing_fatal("RDomain", "rdomain");
 			if (match_pattern_list(ci->rdomain, arg, 0) != 1)
 				result = 0;
 			else
@@ -1209,7 +1218,7 @@ process_server_config_line(ServerOptions *options, char *line,
     const char *filename, int linenum, int *activep,
     struct connection_info *connectinfo)
 {
-	char *cp, ***chararrayptr, **charptr, *arg, *arg2, *p;
+	char ch, *cp, ***chararrayptr, **charptr, *arg, *arg2, *p;
 	int cmdline = 0, *intptr, value, value2, n, port;
 	SyslogFacility *log_facility_ptr;
 	LogLevel *log_level_ptr;
@@ -1309,8 +1318,10 @@ process_server_config_line(ServerOptions *options, char *line,
 			port = 0;
 			p = arg;
 		} else {
-			p = hpdelim(&arg);
-			if (p == NULL)
+			arg2 = NULL;
+			ch = '\0';
+			p = hpdelim2(&arg, &ch);
+			if (p == NULL || ch == '/')
 				fatal("%s line %d: bad address:port usage",
 				    filename, linenum);
 			p = cleanhostname(p);
@@ -1363,8 +1374,10 @@ process_server_config_line(ServerOptions *options, char *line,
 		if (!arg || *arg == '\0')
 			fatal("%s line %d: missing file name.",
 			    filename, linenum);
-		if (*activep)
-			servconf_add_hostkey(filename, linenum, options, arg);
+		if (*activep) {
+			servconf_add_hostkey(filename, linenum,
+			    options, arg, 1);
+		}
 		break;
 
 	case sHostKeyAgent:
@@ -1433,7 +1446,8 @@ process_server_config_line(ServerOptions *options, char *line,
 			fatal("%s line %d: Missing argument.",
 			    filename, linenum);
 		if (*arg != '-' &&
-		    !sshkey_names_valid2(*arg == '+' ? arg + 1 : arg, 1))
+		    !sshkey_names_valid2(*arg == '+' || *arg == '^' ?
+		    arg + 1 : arg, 1))
 			fatal("%s line %d: Bad key types '%s'.",
 			    filename, linenum, arg ? arg : "<NONE>");
 		if (*activep && *charptr == NULL)
@@ -1704,7 +1718,8 @@ process_server_config_line(ServerOptions *options, char *line,
 		arg = strdelim(&cp);
 		if (!arg || *arg == '\0')
 			fatal("%s line %d: Missing argument.", filename, linenum);
-		if (*arg != '-' && !ciphers_valid(*arg == '+' ? arg + 1 : arg))
+		if (*arg != '-' &&
+		    !ciphers_valid(*arg == '+' || *arg == '^' ? arg + 1 : arg))
 			fatal("%s line %d: Bad SSH2 cipher spec '%s'.",
 			    filename, linenum, arg ? arg : "<NONE>");
 		if (options->ciphers == NULL)
@@ -1715,7 +1730,8 @@ process_server_config_line(ServerOptions *options, char *line,
 		arg = strdelim(&cp);
 		if (!arg || *arg == '\0')
 			fatal("%s line %d: Missing argument.", filename, linenum);
-		if (*arg != '-' && !mac_valid(*arg == '+' ? arg + 1 : arg))
+		if (*arg != '-' &&
+		    !mac_valid(*arg == '+' || *arg == '^' ? arg + 1 : arg))
 			fatal("%s line %d: Bad SSH2 mac spec '%s'.",
 			    filename, linenum, arg ? arg : "<NONE>");
 		if (options->macs == NULL)
@@ -1728,7 +1744,8 @@ process_server_config_line(ServerOptions *options, char *line,
 			fatal("%s line %d: Missing argument.",
 			    filename, linenum);
 		if (*arg != '-' &&
-		    !kex_names_valid(*arg == '+' ? arg + 1 : arg))
+		    !kex_names_valid(*arg == '+' || *arg == '^' ?
+		    arg + 1 : arg))
 			fatal("%s line %d: Bad SSH2 KexAlgorithms '%s'.",
 			    filename, linenum, arg ? arg : "<NONE>");
 		if (options->kex_algorithms == NULL)
@@ -1936,8 +1953,9 @@ process_server_config_line(ServerOptions *options, char *line,
 				xasprintf(&arg2, "*:%s", arg);
 			} else {
 				arg2 = xstrdup(arg);
-				p = hpdelim(&arg);
-				if (p == NULL) {
+				ch = '\0';
+				p = hpdelim2(&arg, &ch);
+				if (p == NULL || ch == '/') {
 					fatal("%s line %d: missing host in %s",
 					    filename, linenum,
 					    lookup_opcode_name(opcode));
@@ -2026,7 +2044,7 @@ process_server_config_line(ServerOptions *options, char *line,
 			    linenum);
 		len = strspn(cp, WHITESPACE);
 		if (*activep && options->authorized_keys_command == NULL) {
-			if (cp[len] != '/' && strcasecmp(cp + len, "none") != 0)
+			if (!path_absolute(cp + len) && strcasecmp(cp + len, "none") != 0)
 				fatal("%.200s line %d: AuthorizedKeysCommand "
 				    "must be an absolute path",
 				    filename, linenum);
@@ -2052,7 +2070,7 @@ process_server_config_line(ServerOptions *options, char *line,
 		len = strspn(cp, WHITESPACE);
 		if (*activep &&
 		    options->authorized_principals_command == NULL) {
-			if (cp[len] != '/' && strcasecmp(cp + len, "none") != 0)
+			if (!path_absolute(cp + len) && strcasecmp(cp + len, "none") != 0)
 				fatal("%.200s line %d: "
 				    "AuthorizedPrincipalsCommand must be "
 				    "an absolute path", filename, linenum);

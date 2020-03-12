@@ -221,10 +221,23 @@ explicit_bzero(void *b, size_t len)
 	SecureZeroMemory(b, len);
 }
 
+static DWORD last_dlerror = ERROR_SUCCESS;
+
 HMODULE
 dlopen(const char *filename, int flags)
 {
-	return LoadLibraryA(filename);
+	wchar_t *wfilename = utf8_to_utf16(filename);
+	if (wfilename == NULL) {
+		last_dlerror = ERROR_INVALID_PARAMETER;
+		return NULL;
+	}
+
+	HMODULE module = LoadLibraryW(wfilename);
+	if (module == NULL)
+		last_dlerror = GetLastError();
+
+	free(wfilename);
+	return module;
 }
 
 int
@@ -234,12 +247,51 @@ dlclose(HMODULE handle)
 	return 0;
 }
 
-FARPROC 
+void *
 dlsym(HMODULE handle, const char *symbol)
 {
-	return GetProcAddress(handle, symbol);
+	void *ptr = GetProcAddress(handle, symbol);
+	if (ptr == NULL)
+		last_dlerror = GetLastError();
+	return ptr;
 }
 
+char *
+dlerror()
+{
+	static char *message = NULL;
+	if (message != NULL) {
+		free(message);
+		message = NULL;
+	}
+	if (last_dlerror == ERROR_SUCCESS)
+		return NULL;
+
+	wchar_t *wmessage = NULL;
+	DWORD length = FormatMessageW(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, last_dlerror, 0, (wchar_t *) &wmessage, 0, NULL);
+	last_dlerror = ERROR_SUCCESS;
+
+	if (length == 0)
+		goto error;
+
+	if (wmessage[length - 1] == L'\n')
+		wmessage[length - 1] = L'\0';
+	if (length > 1 && wmessage[length - 2] == L'\r')
+		wmessage[length - 2] = L'\0';
+
+	message = utf16_to_utf8(wmessage);
+	LocalFree(wmessage);
+
+	if (message == NULL)
+		goto error;
+
+	return message;
+
+error:
+	return "Failed to format error message";
+}
 
 /*fopen on Windows to mimic https://linux.die.net/man/3/fopen
 * only r, w, a are supported for now
@@ -267,7 +319,8 @@ w32_fopen_utf8(const char *input_path, const char *mode)
 	}
 
 	/* if opening null device, point to Windows equivalent */
-	if (strncmp(input_path, NULL_DEVICE, sizeof(NULL_DEVICE)) == 0) {
+	if (strncmp(input_path, NULL_DEVICE, sizeof(NULL_DEVICE)) == 0
+		|| strncmp(input_path, NULL_DEVICE_WIN, sizeof(NULL_DEVICE_WIN)) == 0) {
 		nonfs_dev = 1;
 		wpath = utf8_to_utf16(NULL_DEVICE_WIN);
 	}
@@ -365,7 +418,7 @@ char*
 				goto cleanup;
 			}
 			
-			if((actual_read + strlen(str_tmp)) >= n)
+			if((actual_read + (int)strlen(str_tmp)) >= n)
 				break;
 			if ((r = memcpy_s(cp, n - actual_read, str_tmp, strlen(str_tmp))) != 0) {
 				debug3("memcpy_s failed with error: %d.", r);
@@ -503,7 +556,7 @@ strmode(mode_t mode, char *p)
 		*p++ = '-';
 
 	const char *permissions = "****** ";	
-	for(int i = 0; i < strlen(permissions); i++)
+	for(int i = 0; i < (int)strlen(permissions); i++)
 		*p++ = permissions[i];
 	
 	*p = '\0';
@@ -528,6 +581,14 @@ w32_chmod(const char *pathname, mode_t mode)
 
 int
 w32_chown(const char *pathname, unsigned int owner, unsigned int group)
+{
+	/* TODO - implement this */
+	errno = EOPNOTSUPP;
+	return -1;
+}
+
+int 
+w32_fchown( int fd, unsigned int owner, unsigned int group)
 {
 	/* TODO - implement this */
 	errno = EOPNOTSUPP;
@@ -772,7 +833,7 @@ w32_getcwd(char *buffer, int maxlen)
 		return NULL;
 	}
 
-	if (strlen(putf8) >= maxlen) {
+	if ((int)strlen(putf8) >= maxlen) {
 		errno = ERANGE;
 		free(putf8);
 		return NULL;
@@ -787,7 +848,7 @@ w32_getcwd(char *buffer, int maxlen)
 	if (chroot_path) {
 		/* ensure we are within chroot jail */
 		char c = buffer[chroot_path_len];
-		if ( strlen(buffer) < chroot_path_len ||
+		if ((int)strlen(buffer) < chroot_path_len ||
 		    memcmp(chroot_path, buffer, chroot_path_len) != 0 ||
 		    (c != '\0' && c!= '\\') ) {
 			errno = EOTHER;
@@ -889,8 +950,10 @@ convertToForwardslash(char *str)
  *  path to produce a canonicalized absolute pathname.
  */
 char *
-realpath(const char *inputpath, char resolved[PATH_MAX])
+realpath(const char *inputpath, char * resolved)
 {
+	wchar_t* temppath_utf16 = NULL;
+	wchar_t* resolved_utf16 = NULL;
 	char path[PATH_MAX] = { 0, }, tempPath[PATH_MAX] = { 0, }, *ret = NULL;
 	int is_win_path = 1;
 
@@ -976,7 +1039,10 @@ realpath(const char *inputpath, char resolved[PATH_MAX])
 		resolved[3] = '\0';
 	}
 
-	if (_fullpath(tempPath, resolved, PATH_MAX) == NULL) {
+	/* note: _wfullpath() is required to resolve paths containing unicode characters */
+	if ((resolved_utf16 = utf8_to_utf16(resolved)) == NULL ||
+		(temppath_utf16 = _wfullpath(NULL, resolved_utf16, 0)) == NULL ||
+		WideCharToMultiByte(CP_UTF8, 0, temppath_utf16, -1, tempPath, sizeof(tempPath), NULL, NULL) == 0) {
 		errno = EINVAL;
 		goto done;
 	}
@@ -1020,6 +1086,10 @@ realpath(const char *inputpath, char resolved[PATH_MAX])
 	}
 
 done:
+	if (resolved_utf16 != NULL)
+		free(resolved_utf16);
+	if (temppath_utf16 != NULL)
+		free(temppath_utf16);
 	return ret;
 }
 
@@ -1132,7 +1202,9 @@ char *
 readpassphrase(const char *prompt, char *outBuf, size_t outBufLen, int flags)
 {
 	int current_index = 0;
-	char ch;
+	int utf8_read = 0;
+	char utf8_char[4];
+	wchar_t ch;
 	wchar_t* wtmp = NULL;
 
 	if (outBufLen == 0) {
@@ -1140,7 +1212,7 @@ readpassphrase(const char *prompt, char *outBuf, size_t outBufLen, int flags)
 		return NULL;
 	}
 
-	while (_kbhit()) _getch();
+	while (_kbhit()) _getwch();
 
 	wtmp = utf8_to_utf16(prompt);
 	if (wtmp == NULL)
@@ -1149,37 +1221,52 @@ readpassphrase(const char *prompt, char *outBuf, size_t outBufLen, int flags)
 	_cputws(wtmp);
 	free(wtmp);
 
-	while (current_index < outBufLen - 1) {
-		ch = _getch();
+	while (current_index < (int)outBufLen - 1) {
+		ch = _getwch();
 		
-		if (ch == '\r') {
-			if (_kbhit()) _getch(); /* read linefeed if its there */
+		if (ch == L'\r') {
+			if (_kbhit()) _getwch(); /* read linefeed if its there */
 			break;
-		} else if (ch == '\n') {
+		} else if (ch == L'\n') {
 			break;
-		} else if (ch == '\b') { /* backspace */
+		} else if (ch == L'\b') { /* backspace */
 			if (current_index > 0) {
 				if (flags & RPP_ECHO_ON)
-					printf_s("%c \b", ch);
+					wprintf_s(L"%c \b", ch);
 
-				current_index--; /* overwrite last character */
+				/* overwrite last character - remove any utf8 extended chars */
+				while (current_index > 0 && (outBuf[current_index - 1] & 0xC0) == 0x80)
+					current_index--;
+
+				/* overwrite last character - remove first utf8 byte */
+				if (current_index > 0)
+					current_index--;
 			}
-		} else if (ch == '\003') { /* exit on Ctrl+C */
+		} else if (ch == L'\003') { /* exit on Ctrl+C */
 			fatal("");
 		} else {
 			if (flags & RPP_SEVENBIT)
 				ch &= 0x7f;
 
-			if (isalpha((unsigned char)ch)) {
+			if (iswalpha(ch)) {
 				if(flags & RPP_FORCELOWER)
-					ch = tolower((unsigned char)ch);
+					ch = towlower(ch);
 				if(flags & RPP_FORCEUPPER)
-					ch = toupper((unsigned char)ch);
+					ch = towupper(ch);
 			}
 
-			outBuf[current_index++] = ch;
+			/* convert unicode to utf8 characters */
+			int utf8_char_size = sizeof(utf8_char);
+			if ((utf8_read = WideCharToMultiByte(CP_UTF8, 0, &ch, 1, utf8_char, sizeof(utf8_char), NULL, NULL)) == 0)
+				fatal("character conversion failed");
+
+			/* append to output buffer if the characters fit */
+			if (current_index + utf8_read >= outBufLen - 1) break;
+			memcpy(&outBuf[current_index], utf8_char, utf8_read);
+			current_index += utf8_read;
+
 			if(flags & RPP_ECHO_ON)
-				printf_s("%c", ch);
+				wprintf_s(L"%c", ch);
 		}
 	}
 
@@ -1250,8 +1337,9 @@ get_others_file_permissions(wchar_t * file_name, int isReadOnlyFile)
 		goto cleanup;
 	}
 
-	if (((is_valid_sid = IsValidSid(owner_sid)) == FALSE) || ((is_valid_acl = IsValidAcl(dacl)) == FALSE)) {
-		debug3("IsValidSid: %d; is_valid_acl: %d", is_valid_sid, is_valid_acl);
+	if (((is_valid_sid = IsValidSid(owner_sid)) == FALSE) || dacl == NULL ||
+		((is_valid_acl = IsValidAcl(dacl)) == FALSE)) {
+		debug3("IsValidSid: %d; NULL Acl: %d; IsValidAcl: %d", is_valid_sid, dacl == NULL, is_valid_acl);
 		goto cleanup;
 	}
 
@@ -1321,7 +1409,7 @@ is_absolute_path(const char *path)
 	if(*path == '\"' || *path == '\'') /* skip double quote if path is "c:\abc" */
 		path++;
 
-	if (*path == '/' || *path == '\\' || (*path != '\0' && isalpha(*path) && path[1] == ':') ||
+	if (*path == '/' || *path == '\\' || (*path != '\0' && __isascii(*path) && isalpha(*path) && path[1] == ':') ||
 	    ((strlen(path) >= strlen(PROGRAM_DATA)) && (memcmp(path, PROGRAM_DATA, strlen(PROGRAM_DATA)) == 0)))
 		retVal = 1;
 
@@ -1430,10 +1518,10 @@ setenv(const char *name, const char *value, int rewrite)
 int
 chroot(const char *path)
 {
-	char cwd[MAX_PATH];
+	char cwd[PATH_MAX];
 
 	if (strcmp(path, ".") == 0) {
-		if (w32_getcwd(cwd, MAX_PATH) == NULL)
+		if (w32_getcwd(cwd, PATH_MAX) == NULL)
 			return -1;
 		path = (const char *)cwd;
 	} else if (*(path + 1) != ':') {
@@ -1640,10 +1728,10 @@ build_exec_command(const char * command)
 }
 
 /*
- * cmd is internally decoarated with a set of '"'
- * to account for any spaces within the commandline
- * the double quotes and backslash is escaped if needed 
- * this decoration is done only when additional arguments are passed in argv
+* cmd is internally decoarated with a set of '"'
+* to account for any spaces within the commandline
+* the double quotes and backslash is escaped if needed
+* this decoration is done only when additional arguments are passed in argv
 */
 char *
 build_commandline_string(const char* cmd, char *const argv[], BOOLEAN prepend_module_path)
@@ -1668,6 +1756,7 @@ build_commandline_string(const char* cmd, char *const argv[], BOOLEAN prepend_mo
 	if (is_bash_test_env()) {
 		memset(path, 0, path_len + 1);
 		bash_to_win_path(cmd, path, path_len + 1);
+		path_len = (DWORD)strlen(path);
 	}
 
 	if (!is_absolute_path(path) && prepend_module_path)
@@ -1717,7 +1806,9 @@ build_commandline_string(const char* cmd, char *const argv[], BOOLEAN prepend_mo
 		errno = ENOMEM;
 		goto cleanup;
 	}
+
 	t = cmdline;
+
 	*t++ = '\"';
 	if (add_module_path) {
 		/* add current module path to start if needed */
@@ -1725,10 +1816,27 @@ build_commandline_string(const char* cmd, char *const argv[], BOOLEAN prepend_mo
 		t += strlen(__progdir);
 		*t++ = '\\';
 	}
+
 	if (path[0] != '\"') {
-		memcpy(t, path, path_len);
-		t += path_len;
-		*t++ = '\"';
+		/* If path is <executable_path> <arg> then we should add double quotes after <executable_path> i.e., "<executable_path>" <arg> should be passed to CreateProcess().
+		* Example - If path is C:\cygwin64\bin\bash.exe /cygdrive/e/openssh-portable-latestw_all/openssh-portable/regress/scp-ssh-wrapper.sh then
+		*           we should pass "C:\cygwin64\bin\bash.exe" /cygdrive/e/openssh-portable-latestw_all/openssh-portable/regress/scp-ssh-wrapper.sh
+		*           to the CreateProcess() otherwise CreateProcess() will fail with error code 2.
+		*/
+		if (strstr(path, ".exe") && (tmp = strstr(strstr(path, ".exe"), " ")))
+		{
+			size_t tmp_pos = tmp - path;
+			memcpy(t, path, tmp_pos);
+			t += tmp_pos;
+			*t++ = '\"';
+			memcpy(t, tmp, strlen(path) - tmp_pos);
+			t += (strlen(path) - tmp_pos);
+		}
+		else {
+			memcpy(t, path, path_len);
+			t += path_len;
+			*t++ = '\"';
+		}
 	}
 	else {
 		/*path already contains "*/
@@ -1799,6 +1907,7 @@ cleanup:
 		free(cmdline);
 	return ret;
 }
+
 BOOL
 is_bash_test_env()
 {
@@ -1851,6 +1960,33 @@ getrrsetbyname(const char *hostname, unsigned int rdclass,
 	return -1;
 }
 
+int 
+fnmatch(const char *pattern, const char *string, int flags)
+{
+	int r = -1;
+	wchar_t *pw = NULL, *sw = NULL;
+
+	if (flags) {
+		verbose("%s is not supported with flags", __func__);
+		goto done;
+	}
+
+	pw = utf8_to_utf16(pattern);
+	sw = utf8_to_utf16(string);
+	if (!pw || !sw)
+		goto done;
+	convertToBackslashW(pw);
+	convertToBackslashW(sw);
+	if (PathMatchSpecW(sw, pw))
+		r = 0;
+done:
+	if (pw)
+		free(pw);
+	if (sw)
+		free(sw);
+	return r;
+}
+
 void
 freerrset(struct rrsetinfo *rrset)
 {
@@ -1896,4 +2032,15 @@ cleanup:
 		free(command_w);
 
 	return ret;
+}
+
+char *
+strrstr(const char *inStr, const char *pattern)
+{
+	char *tmp = NULL, *last = NULL;
+	tmp = (char *) inStr;
+	while(tmp = strstr(tmp, pattern))
+		last = tmp++;
+
+	return last;
 }

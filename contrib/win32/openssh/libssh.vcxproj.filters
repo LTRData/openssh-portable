@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="$(OpenSSH-Src-Path)addrmatch.c" />
@@ -32,14 +32,8 @@
     <ClCompile Include="$(OpenSSH-Src-Path)hostfile.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kex.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexc25519.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)kexc25519c.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)kexc25519s.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexdh.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)kexdhc.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)kexdhs.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexecdh.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)kexecdhc.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)kexecdhs.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexgex.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)kexgexc.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)krl.c" />
@@ -48,7 +42,6 @@
     <ClCompile Include="$(OpenSSH-Src-Path)monitor_fdpass.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)msg.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)nchan.c" />
-    <ClCompile Include="$(OpenSSH-Src-Path)opacket.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)packet.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)poly1305.c" />
     <ClCompile Include="$(OpenSSH-Src-Path)sc25519.c" />
@@ -99,6 +92,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)bitmap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(OpenSSH-Src-Path)bufaux.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(OpenSSH-Src-Path)bufbn.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(OpenSSH-Src-Path)bufec.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(OpenSSH-Src-Path)buffer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)canohost.c">
@@ -209,6 +214,9 @@
     <ClCompile Include="$(OpenSSH-Src-Path)kexgexc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(OpenSSH-Src-Path)key.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(OpenSSH-Src-Path)krl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -304,7 +312,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(OpenSSH-Src-Path)crypto-wrap.h" />
     <ClInclude Include="$(OpenSSH-Src-Path)sshfileperm.h" />
   </ItemGroup>
 </Project>

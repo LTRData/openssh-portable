@@ -290,6 +290,7 @@ int do_exec_windows(struct ssh *ssh, Session *s, const char *command, int pty) {
 		errno = ENOMEM;
 		goto cleanup;
 	}
+
 	sprintf_s(shell, shell_len, "\"%s\"", s->pw->pw_shell);
 	debug3("shell: %s", shell);
 
@@ -316,7 +317,21 @@ int do_exec_windows(struct ssh *ssh, Session *s, const char *command, int pty) {
 
 	if (pty) {
 		fcntl(s->ptyfd, F_SETFD, FD_CLOEXEC);
-		if (exec_command_with_pty(&pid, shell, pipein[0], pipeout[1], pipeerr[1], s->col, s->row, s->ttyfd) == -1)
+		char *pty_cmd = NULL;
+		if (command) {
+			size_t len = strlen(shell) + 1 + strlen(shell_option) + 1 + strlen(command) + 1;
+			pty_cmd = calloc(1, len);
+
+			strcpy_s(pty_cmd, len, shell);
+			strcat_s(pty_cmd, len, " ");
+			strcat_s(pty_cmd, len, shell_option);
+			strcat_s(pty_cmd, len, " ");
+			strcat_s(pty_cmd, len, command);
+		} else {
+			pty_cmd = shell;
+		}
+
+		if (exec_command_with_pty(&pid, pty_cmd, pipein[0], pipeout[1], pipeerr[1], s->col, s->row, s->ttyfd) == -1)
 			goto cleanup;
 		close(s->ttyfd);
 		s->ttyfd = -1;
@@ -326,13 +341,15 @@ int do_exec_windows(struct ssh *ssh, Session *s, const char *command, int pty) {
 		char *spawn_argv[4] = { NULL, };
 		exec_command = build_exec_command(command);
 		debug3("exec_command: %s", exec_command);
-		if (exec_command == NULL)
-			goto cleanup;
+
 		if (shell_type == SH_PS || shell_type == SH_BASH ||
 			shell_type == SH_CYGWIN || (shell_type == SH_OTHER) && arg_escape) {
 			spawn_argv[0] = shell;
-			spawn_argv[1] = shell_option;
-			spawn_argv[2] = exec_command;
+
+			if (exec_command) {
+				spawn_argv[1] = shell_option;
+				spawn_argv[2] = exec_command;
+			}
 		}
 		else {
 			/*
@@ -341,16 +358,26 @@ int do_exec_windows(struct ssh *ssh, Session *s, const char *command, int pty) {
 			 * of posix_spawn to avoid escaping
 			 */
 			int posix_cmd_input_len = strlen(shell) + 1;
-			posix_cmd_input_len += strlen(shell_option) + 1;
+
 			/* account for " around and null */
-			posix_cmd_input_len += strlen(exec_command) + 2 + 1;
+			if (exec_command) {
+				posix_cmd_input_len += strlen(shell_option) + 1;
+				posix_cmd_input_len += strlen(exec_command) + 2 + 1;
+			}
 
 			if ((posix_cmd_input = malloc(posix_cmd_input_len)) == NULL) {
 				errno = ENOMEM;
 				goto cleanup;
 			}
-			sprintf_s(posix_cmd_input, posix_cmd_input_len, "%s %s \"%s\"",
-				shell, shell_option, exec_command);
+
+			if (exec_command) {
+				sprintf_s(posix_cmd_input, posix_cmd_input_len, "%s %s \"%s\"",
+					shell, shell_option, exec_command);
+			} else {
+				sprintf_s(posix_cmd_input, posix_cmd_input_len, "%s",
+					shell); 
+			}
+
 			spawn_argv[0] = posix_cmd_input;
 		}
 		debug3("arg escape option: %s", arg_escape ? "TRUE":"FALSE");
@@ -410,13 +437,13 @@ int do_exec_windows(struct ssh *ssh, Session *s, const char *command, int pty) {
 	*/
 	if (pty) {
 		/* Set interactive/non-interactive mode */
-		packet_set_interactive(1, options.ip_qos_interactive,
+		ssh_packet_set_interactive(ssh, 1, options.ip_qos_interactive,
 			options.ip_qos_bulk);
 		session_set_fds(ssh, s, pipein[1], pipeout[0], -1, 1, 1);
 	}
 	else {
 		/* Set interactive/non-interactive mode */
-		packet_set_interactive(s->display != NULL, options.ip_qos_interactive,
+		ssh_packet_set_interactive(ssh, s->display != NULL, options.ip_qos_interactive,
 			options.ip_qos_bulk);
 		session_set_fds(ssh, s, pipein[1], pipeout[0], pipeerr[0], s->is_subsystem, 0);
 	}
