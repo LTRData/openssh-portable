@@ -1711,3 +1711,7 @@
 #define FORK_NOT_SUPPORTED
 #define HAVE_FREEZERO
 #define FILESYSTEM_NO_BACKSLASH
+
+#if defined(_M_IX86)
+#define HAVE_STRNLEN 1
+#endif

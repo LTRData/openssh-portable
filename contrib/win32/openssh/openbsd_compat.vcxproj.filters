@@ -213,6 +213,9 @@
     <ClCompile Include="$(OpenSSH-Src-Path)openbsd-compat\libressl-api-compat.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(OpenSSH-Src-Path)openbsd-compat\memmem.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(OpenSSH-Src-Path)openbsd-compat\base64.h">
