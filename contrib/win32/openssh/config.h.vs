@@ -1717,4 +1717,5 @@
 #endif
 #define HAVE_LOCALTIME_R
 #define HAVE_DECL_MEMMEM 0
-// #define WITH_ZLIB
+#define WITH_ZLIB
+#define _PATH_TTY "conin$"
