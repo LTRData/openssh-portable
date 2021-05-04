@@ -1715,6 +1715,6 @@
 #if defined(_M_IX86)
 #define HAVE_STRNLEN 1
 #endif
-// #define HAVE_LOCALTIME_R
-// #define HAVE_DECL_MEMMEM 0
+#define HAVE_LOCALTIME_R
+#define HAVE_DECL_MEMMEM 0
 // #define WITH_ZLIB

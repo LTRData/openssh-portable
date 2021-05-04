@@ -690,7 +690,7 @@ fileio_write_wrapper(struct w32_io* pio, const void* buf, size_t bytes_to_copy)
 
 	for (int i = 0; i < bytes_to_copy; i += WRITE_BUFFER_SIZE, chunk_count++) {
 		chunk_buf = (BYTE*)buf + chunk_count * WRITE_BUFFER_SIZE;
-		chunk_size = ((bytes_to_copy - i) >= WRITE_BUFFER_SIZE) ? WRITE_BUFFER_SIZE : (bytes_to_copy - i);
+		chunk_size = (int)(((bytes_to_copy - i) >= WRITE_BUFFER_SIZE) ? WRITE_BUFFER_SIZE : (bytes_to_copy - i));
 		bytes_written = fileio_write(pio, chunk_buf, chunk_size);
 
 		if (bytes_written == -1)

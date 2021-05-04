@@ -93,6 +93,7 @@ void	 sshsigdie(const char *, const char *, int, int,
 void	 sshlogdie(const char *, const char *, int, int,
     LogLevel, const char *, const char *, ...) __attribute__((noreturn))
     __attribute__((format(printf, 7, 8)));
+DECLSPEC_NORETURN
 void	 sshfatal(const char *, const char *, int, int,
     LogLevel, const char *, const char *, ...) __attribute__((noreturn))
     __attribute__((format(printf, 7, 8)));

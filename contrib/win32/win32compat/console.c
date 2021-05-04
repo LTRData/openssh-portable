@@ -1641,7 +1641,7 @@ ConRestoreViewRect()
     __try
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
-        HWND hwnd = FindWindow(NULL, consoleTitle);
+        HWND hwnd = GetConsoleWindow();
 
         WINDOWPLACEMENT wp;
         wp.length = sizeof(WINDOWPLACEMENT);
